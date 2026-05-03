@@ -1,20 +1,20 @@
 """
-Pipeline entry point.
+Pipeline entry point — Stage 3.
 
-Orchestrates the three medallion architecture stages in order:
-  1. Ingest    — reads raw source files into Bronze layer Delta tables
-  2. Transform — cleans and conforms Bronze into Silver layer Delta tables
-  3. Provision — joins Silver tables into Gold dimensional model
+Execution order:
+  1. Batch pipeline (Stage 2 — Bronze → Silver → Gold + DQ report)
+  2. Streaming loop (Stage 3 — polls /data/stream/, merges into stream_gold/)
 
-The evaluation system invokes this file directly:
-  docker run ... python pipeline/run_all.py
-
-No interactive input, no argument parsing that blocks execution.
+Both must complete within the 30-minute container wall-clock limit.
+Exits 0 on success, 1 on any unhandled exception.
 """
 
+from __future__ import annotations
 import logging
 import sys
 import os
+import time
+from datetime import datetime, timezone
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,30 +23,57 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add /app to sys.path so pipeline.* imports work whether run from /app or cwd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pipeline.config_loader import load_config
-from pipeline.ingest import run_ingestion
-from pipeline.transform import run_transformation
-from pipeline.provision import run_provisioning
+from pipeline.config_loader  import load_config, load_dq_rules
+from pipeline.ingest         import run_ingestion
+from pipeline.transform      import run_transformation
+from pipeline.provision      import run_provisioning
+from pipeline.dq_report      import write_dq_report
+from pipeline.stream_ingest  import run_stream_ingestion
 
 
 if __name__ == "__main__":
     try:
+        pipeline_start = time.time()
+        run_timestamp  = datetime.now(timezone.utc).replace(
+                             microsecond=0).isoformat()
+
         config = load_config()
-        logger.info("Pipeline starting — config loaded.")
+        rules  = load_dq_rules(config)
+        logger.info("Pipeline starting — stage %s", config.get("stage", "3"))
 
-        logger.info("=== Stage 1/3: Bronze Ingestion ===")
-        run_ingestion(config)
+        # ── 1/4: Bronze ingestion ──────────────────────────────────────────
+        logger.info("=== Stage 1/4: Bronze Ingestion ===")
+        source_counts = run_ingestion(config)
 
-        logger.info("=== Stage 2/3: Silver Transformation ===")
-        run_transformation(config)
+        # ── 2/4: Silver transformation ─────────────────────────────────────
+        logger.info("=== Stage 2/4: Silver Transformation ===")
+        dq_transform_counts = run_transformation(config)
 
-        logger.info("=== Stage 3/3: Gold Provisioning ===")
-        run_provisioning(config)
+        # ── 3/4: Gold provisioning ─────────────────────────────────────────
+        logger.info("=== Stage 3/4: Gold Provisioning ===")
+        gold_counts = run_provisioning(config)
 
-        logger.info("Pipeline complete — exiting 0.")
+        # ── DQ report (written before stream loop) ─────────────────────────
+        batch_duration = int(time.time() - pipeline_start)
+        write_dq_report(
+            config=config,
+            rules=rules,
+            run_timestamp=run_timestamp,
+            source_counts=source_counts,
+            dq_transform_counts=dq_transform_counts,
+            gold_counts=gold_counts,
+            execution_duration_seconds=batch_duration,
+        )
+        logger.info("Batch pipeline complete in %ds.", batch_duration)
+
+        # ── 4/4: Stream ingestion ──────────────────────────────────────────
+        logger.info("=== Stage 4/4: Stream Ingestion ===")
+        run_stream_ingestion(config)
+
+        total_duration = int(time.time() - pipeline_start)
+        logger.info("Full pipeline complete in %ds — exiting 0.", total_duration)
         sys.exit(0)
 
     except Exception:
