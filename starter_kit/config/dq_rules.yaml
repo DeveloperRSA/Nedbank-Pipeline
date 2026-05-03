@@ -1,40 +1,74 @@
-# Data Quality Rules
-# Loaded at runtime by transform.py — do not hardcode these in Python.
+# ─────────────────────────────────────────────────────────────────────────────
+# DQ Rules Configuration — Stage 2
+#
+# All six DQ issue types defined here. Pipeline code reads this file at
+# runtime — no DQ logic is hardcoded. Changing a handling_action here
+# changes pipeline behaviour without a code modification.
+#
+# handling_action values must exactly match the reference set in
+# dq_report_template.json §_handling_action_reference and in dq_report.json.
+# ─────────────────────────────────────────────────────────────────────────────
 
-null_checks:
-  fact_transactions:
-    - transaction_id
-    - account_id
-    - transaction_date
-    - amount
-    - transaction_type
-    - currency
-    - channel
+dq_rules:
 
-type_checks:
-  fact_transactions:
-    amount: decimal
-    transaction_date: date
-    transaction_timestamp: timestamp
+  # ── 1. Duplicate transactions ───────────────────────────────────────────────
+  DUPLICATE_DEDUPED:
+    affected_files: [transactions.jsonl]
+    detection: "Group by transaction_id. Count > 1 is a duplicate set."
+    resolution: "Keep earliest transaction_timestamp. Exclude all other copies."
+    handling_action: DEDUPLICATED_KEEP_FIRST
+    dq_flag: DUPLICATE_DEDUPED
 
-domain_checks:
-  transaction_type:
-    allowed: [DEBIT, CREDIT, FEE, REVERSAL]
+  # ── 2. Orphaned account references ─────────────────────────────────────────
+  ORPHANED_ACCOUNT:
+    affected_files: [transactions.jsonl]
+    detection: "Left-join to accounts on account_id. Null match = orphan."
+    resolution: "Route to bronze quarantine. Exclude from Silver and Gold."
+    handling_action: QUARANTINED
+    dq_flag: ORPHANED_ACCOUNT
+
+  # ── 3. Amount type mismatch ─────────────────────────────────────────────────
+  TYPE_MISMATCH:
+    affected_files: [transactions.jsonl]
+    detection: "amount arrives as STRING rather than numeric type."
+    resolution: "Cast to DECIMAL(18,2). Retain if cast succeeds, exclude if not."
+    handling_action: CAST_TO_DECIMAL
+    handling_action_failed: EXCLUDED_CAST_FAILED
     dq_flag: TYPE_MISMATCH
-  channel:
-    allowed: [POS, APP, ATM, EFT, USSD, INTERNAL]
-    dq_flag: TYPE_MISMATCH
 
-currency_normalisation:
-  target_value: ZAR
-  flag_variants: true
+  # ── 4. Date format inconsistency ────────────────────────────────────────────
+  DATE_FORMAT:
+    affected_files: [transactions.jsonl, accounts.csv, customers.csv]
+    detection: "Date field not parseable as YYYY-MM-DD."
+    date_formats:
+      - "yyyy-MM-dd"
+      - "dd/MM/yyyy"
+      - epoch
+    resolution: "Normalise to ISO DATE. Retain record."
+    handling_action: NORMALISED_DATE
+    dq_flag: DATE_FORMAT
 
-date_format_checks:
-  - transaction_date
-  - last_activity_date
+  # ── 5. Currency variants ────────────────────────────────────────────────────
+  CURRENCY_VARIANT:
+    affected_files: [transactions.jsonl]
+    detection: "currency value is not exactly 'ZAR' (case-sensitive)."
+    variants: ["R", "r", "rands", "RANDS", "zar", "710"]
+    target_value: "ZAR"
+    resolution: "Map all variants to ZAR. Retain record."
+    handling_action: NORMALISED_CURRENCY
+    dq_flag: CURRENCY_VARIANT
 
-referential_integrity:
-  fact_transactions:
-    - field: account_id
-      references: dim_accounts.account_id
-      dq_flag: ORPHANED_ACCOUNT
+  # ── 6. Null primary key ─────────────────────────────────────────────────────
+  NULL_REQUIRED:
+    affected_files: [accounts.csv]
+    detection: "account_id IS NULL after ingestion."
+    resolution: "Exclude from Silver and Gold. Write to bronze quarantine."
+    handling_action: EXCLUDED_NULL_PK
+    dq_flag: NULL_REQUIRED
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Schema evolution — fields added in Stage 2
+# ─────────────────────────────────────────────────────────────────────────────
+schema:
+  optional_transaction_fields:
+    - merchant_subcategory

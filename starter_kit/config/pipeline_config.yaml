@@ -1,6 +1,4 @@
-# Pipeline Configuration
-# All paths are absolute paths inside the Docker container.
-# Read from /data/config/pipeline_config.yaml at runtime (injected by evaluation system).
+# Pipeline Configuration — Stage 2
 
 input:
   accounts_path: /data/input/accounts.csv
@@ -11,10 +9,18 @@ output:
   bronze_path: /data/output/bronze
   silver_path: /data/output/silver
   gold_path: /data/output/gold
+  quarantine_path: /data/output/bronze/quarantine
+  dq_report_path: /data/output/dq_report.json
 
 spark:
   master: local[2]
-  app_name: nedbank-de-pipeline
+  app_name: nedbank-de-pipeline-stage2
+  driver_memory: 512m
+  executor_memory: 1g
+  shuffle_partitions: 4
+  default_parallelism: 2
 
 dq:
   rules_path: /data/config/dq_rules.yaml
+
+stage: "2"
