@@ -1,10 +1,10 @@
-# Nedbank DE Challenge — Stage 2 Solution
+# Nedbank DE Challenge  Stage 2 Solution
 
 ## What Changed from Stage 1
 
 | Change | How it was handled |
 |---|---|
-| 3× data volume | Spark config tightened: `driver.memory=512m`, `executor.memory=1g`, `shuffle.partitions=4` — read each file once, no `.toPandas()` |
+| 3× data volume | Spark config tightened: `driver.memory=512m`, `executor.memory=1g`, `shuffle.partitions=4`  read each file once, no `.toPandas()` |
 | 6 DQ issue types | All detection + handling logic driven by `config/dq_rules.yaml`. No hardcoded DQ logic in Python. |
 | `merchant_subcategory` field | Added as `NULL` column in Silver when absent from source (Stage 1 compat). Present in `fact_transactions` at position 9. |
 | DQ report | Written to `/data/output/dq_report.json` by `pipeline/dq_report.py` |
@@ -52,7 +52,7 @@ Total     ~1.8g  (under 2g ceiling)
 ## Running Locally
 
 ```bash
-docker build -t candidate-submission:stage2 .
+docker build -t stage2-submission:stage2 .
 
 docker run --rm \
   --network=none \
