@@ -61,7 +61,7 @@ docker run --rm \
   --read-only \
   --tmpfs /tmp:rw,size=512m \
   -v /path/to/stage2/data:/data \
-  candidate-submission:stage2
+  stage2-submission:stage2
 ```
 
 ## Tagging for Submission
