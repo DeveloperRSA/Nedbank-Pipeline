@@ -1,0 +1,40 @@
+# Data Quality Rules
+# Loaded at runtime by transform.py — do not hardcode these in Python.
+
+null_checks:
+  fact_transactions:
+    - transaction_id
+    - account_id
+    - transaction_date
+    - amount
+    - transaction_type
+    - currency
+    - channel
+
+type_checks:
+  fact_transactions:
+    amount: decimal
+    transaction_date: date
+    transaction_timestamp: timestamp
+
+domain_checks:
+  transaction_type:
+    allowed: [DEBIT, CREDIT, FEE, REVERSAL]
+    dq_flag: TYPE_MISMATCH
+  channel:
+    allowed: [POS, APP, ATM, EFT, USSD, INTERNAL]
+    dq_flag: TYPE_MISMATCH
+
+currency_normalisation:
+  target_value: ZAR
+  flag_variants: true
+
+date_format_checks:
+  - transaction_date
+  - last_activity_date
+
+referential_integrity:
+  fact_transactions:
+    - field: account_id
+      references: dim_accounts.account_id
+      dq_flag: ORPHANED_ACCOUNT

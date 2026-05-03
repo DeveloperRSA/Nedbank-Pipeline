@@ -1,0 +1,20 @@
+# Pipeline Configuration
+# All paths are absolute paths inside the Docker container.
+# Read from /data/config/pipeline_config.yaml at runtime (injected by evaluation system).
+
+input:
+  accounts_path: /data/input/accounts.csv
+  transactions_path: /data/input/transactions.jsonl
+  customers_path: /data/input/customers.csv
+
+output:
+  bronze_path: /data/output/bronze
+  silver_path: /data/output/silver
+  gold_path: /data/output/gold
+
+spark:
+  master: local[2]
+  app_name: nedbank-de-pipeline
+
+dq:
+  rules_path: /data/config/dq_rules.yaml

@@ -1,0 +1,31 @@
+# Pipeline output — never commit these.
+# The evaluation system provides the output directory via volume mount;
+# any output baked into your image is unreachable.
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test artefacts
+.pytest_cache/
