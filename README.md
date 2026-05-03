@@ -61,14 +61,14 @@ path first, then falls back to `/app/config/pipeline_config.yaml`.
 
 ```bash
 # Build the image
-docker build -t candidate-submission:latest .
+docker build -t stage1-submission:latest .
 
 # Run (mount your local data directory to /data)
 docker run \
   --rm \
   -v /path/to/data:/data \
   -m 2g --cpus="2" \
-  candidate-submission:latest
+  stage1-submission:latest
 ```
 
 The `/path/to/data` directory must have the layout:
